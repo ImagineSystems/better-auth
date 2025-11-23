@@ -70,6 +70,7 @@ export const twoFactor = (options?: TwoFactorOptions | undefined) => {
 						password: z.string().meta({
 							description: "User password",
 						}),
+						twoFactorMethod: z.enum(["otp", "totp"]).default("totp"), // default so existing clients don't break
 						issuer: z
 							.string()
 							.meta({
@@ -91,17 +92,39 @@ export const twoFactor = (options?: TwoFactorOptions | undefined) => {
 											schema: {
 												type: "object",
 												properties: {
-													totpURI: {
-														type: "string",
-														description: "TOTP URI",
-													},
-													backupCodes: {
-														type: "array",
-														items: {
-															type: "string",
-														},
-														description: "Backup codes",
-													},
+													result: {
+														oneOf: [
+															{
+																type: "object",
+																properties: {
+																	totpURI: {
+																		type: "string",
+																		description: "TOTP URI",
+																	},
+																	backupCodes: {
+																		type: "array",
+																		items: {
+																			type: "string",
+																		},
+																		description: "Single-use backup codes",
+																	},
+																},
+																required: ["totpURI", "backupCodes"],
+															},
+															{
+																type: "object",
+																properties: {
+																	twoFactor: {
+																		type: "boolean",
+																		enum: [true],
+																		description:
+																			"Indicates that 2FA has been enabled using OTP method",
+																	},
+																},
+																required: ["twoFactor"],
+															}
+														]
+													}
 												},
 											},
 										},
@@ -113,7 +136,7 @@ export const twoFactor = (options?: TwoFactorOptions | undefined) => {
 				},
 				async (ctx) => {
 					const user = ctx.context.session.user as UserWithTwoFactor;
-					const { password, issuer } = ctx.body;
+					const { password, issuer, twoFactorMethod } = ctx.body;
 					const isPasswordValid = await validatePassword(ctx, {
 						password,
 						userId: user.id,
@@ -132,7 +155,7 @@ export const twoFactor = (options?: TwoFactorOptions | undefined) => {
 						ctx.context.secret,
 						backupCodeOptions,
 					);
-					if (options?.skipVerificationOnEnable) {
+					if (options?.skipVerificationOnEnable || twoFactorMethod === "otp") {
 						const updatedUser = await ctx.context.internalAdapter.updateUser(
 							user.id,
 							{
@@ -156,6 +179,8 @@ export const twoFactor = (options?: TwoFactorOptions | undefined) => {
 						await ctx.context.internalAdapter.deleteSession(
 							ctx.context.session.session.token,
 						);
+
+						if (twoFactorMethod === "otp") { return ctx.json({ twoFactor: true }); }
 					}
 					//delete existing two factor
 					await ctx.context.adapter.deleteMany({
