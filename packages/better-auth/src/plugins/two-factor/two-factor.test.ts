@@ -411,6 +411,27 @@ describe("two factor", async () => {
 		});
 		expect(signInRes.data?.user).toBeDefined();
 
+		it("should enable 2fa when using otp method", async () => {
+			const enableRes = await client.twoFactor.enable({
+				password: testUser.password,
+				twoFactorMethod: "otp",
+				fetchOptions: {
+					headers: updatedHeaders,
+				},
+			});
+			expect(enableRes.data?.twoFactor).toBeDefined();
+			const dbUser = await db.findOne<UserWithTwoFactor>({
+				model: "user",
+				where: [
+					{
+						field: "id",
+						value: session.data?.user.id as string,
+					},
+				],
+			});
+			expect(dbUser?.twoFactorEnabled).toBe(true);
+		});
+
 		// Should still work with original headers
 		const signIn2Res = await client.signIn.email({
 			email: testUser.email,
