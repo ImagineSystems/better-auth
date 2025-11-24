@@ -120,8 +120,15 @@ export const twoFactor = (options?: TwoFactorOptions | undefined) => {
 																		description:
 																			"Indicates that 2FA has been enabled using OTP method",
 																	},
+																	backupCodes: {
+																		type: "array",
+																		items: {
+																			type: "string",
+																		},
+																		description: "Single-use backup codes",
+																	},
 																},
-																required: ["twoFactor"],
+																required: ["twoFactor", "backupCodes"],
 															}
 														]
 													}
@@ -155,7 +162,7 @@ export const twoFactor = (options?: TwoFactorOptions | undefined) => {
 						ctx.context.secret,
 						backupCodeOptions,
 					);
-					if (options?.skipVerificationOnEnable || twoFactorMethod === "otp") {
+					if (options?.skipVerificationOnEnable) { //
 						const updatedUser = await ctx.context.internalAdapter.updateUser(
 							user.id,
 							{

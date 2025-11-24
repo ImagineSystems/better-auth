@@ -11,7 +11,7 @@ import {
 	symmetricEncrypt,
 } from "../../../crypto";
 import { TWO_FACTOR_ERROR_CODES } from "../error-code";
-import type { TwoFactorProvider, UserWithTwoFactor } from "../types";
+import type { TwoFactorProvider, TwoFactorTable, UserWithTwoFactor } from "../types";
 import { defaultKeyHasher } from "../utils";
 import { verifyTwoFactor } from "../verify-two-factor";
 
@@ -84,6 +84,8 @@ export const otp2fa = (options?: OTPOptions | undefined) => {
 		...options,
 		period: (options?.period || 3) * 60 * 1000,
 	};
+
+	const twoFactorTable = "twoFactor";
 
 	async function storeOTP(ctx: GenericEndpointContext, otp: string) {
 		if (opts.storeOTP === "hashed") {
@@ -177,7 +179,19 @@ export const otp2fa = (options?: OTPOptions | undefined) => {
 				});
 			}
 			const { session, key } = await verifyTwoFactor(ctx);
-			if (!session.user.twoFactorEnabled) {
+			const user = session.user as UserWithTwoFactor;
+			const twoFactor = await ctx.context.adapter.findOne<TwoFactorTable>({
+							model: twoFactorTable,
+							where: [
+								{
+									field: "userId",
+									value: user.id,
+								},
+							],
+						});
+			
+			// if (!session.user.twoFactorEnabled) {
+			if (!twoFactor) {
 				throw new APIError("BAD_REQUEST", {
 					message: TWO_FACTOR_ERROR_CODES.OTP_NOT_ENABLED,
 				});
